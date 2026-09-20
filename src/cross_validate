@@ -1,0 +1,67 @@
+"""
+Quick stratified k-fold cross-validation on the training set, to check
+that the ensemble's results aren't an artifact of one particular
+train/test split.
+
+Important: SMOTE is re-applied fresh inside each fold, fit only on that
+fold's training portion. The validation portion of each fold is never
+touched by SMOTE or the scaler-fitting step -- this avoids the classic
+leakage bug where oversampling before splitting lets synthetic points
+derived from a validation-fold sample end up in the training data.
+
+Note this is a narrower check than your original train/test split: it
+only tells you whether performance is stable across resamples of the
+*training* data. It does NOT test generalization to genuinely unseen
+attack subtypes the way the official NSL-KDD test set does (recall your
+earlier finding: ~24% of r2l and ~45% of u2r test attacks are subtypes
+never seen in training at all). A model can be perfectly stable under
+CV and still struggle with that harder, real generalization gap.
+"""
+import numpy as np
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import classification_report, f1_score
+from sklearn.preprocessing import LabelEncoder
+
+from preprocessing import load_and_preprocess
+from compare_models import apply_capped_smote
+from ensemble_model import build_ensemble
+
+N_FOLDS = 3
+
+
+def main():
+    data = load_and_preprocess()
+    X_train, y_train = data["X_train"], data["y_train_multi"]
+
+    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+
+    fold_macro_f1 = []
+
+    for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_train, y_train), start=1):
+        print(f"\n=== Fold {fold_idx}/{N_FOLDS} ===")
+        X_fold_train, X_fold_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+        y_fold_train, y_fold_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
+
+        X_fold_train_sm, y_fold_train_sm = apply_capped_smote(X_fold_train, y_fold_train)
+
+        le = LabelEncoder()
+        y_fold_train_enc = le.fit_transform(y_fold_train_sm)
+
+        model = build_ensemble()
+        model.fit(X_fold_train_sm, y_fold_train_enc)
+
+        y_val_pred_enc = model.predict(X_fold_val)
+        y_val_pred = le.inverse_transform(y_val_pred_enc)
+
+        f1 = f1_score(y_fold_val, y_val_pred, average="macro")
+        fold_macro_f1.append(f1)
+        print(f"Macro F1: {f1:.4f}")
+        print(classification_report(y_fold_val, y_val_pred, zero_division=0))
+
+    print("\n=== Cross-Validation Summary ===")
+    print("Macro F1 per fold:", [f"{f:.4f}" for f in fold_macro_f1])
+    print(f"Mean Macro F1: {np.mean(fold_macro_f1):.4f}  (+/- {np.std(fold_macro_f1):.4f})")
+
+
+if __name__ == "__main__":
+    main()

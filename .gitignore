@@ -4,6 +4,8 @@ __pycache__/
 .DS_Store
 data/
 
+env/
 
 
-
+# Large / regeneratable artifacts (see README for how to recreate)
+models/*.joblib
