@@ -4,16 +4,6 @@ A network intrusion/anomaly detector trained on the NSL-KDD dataset. Classifies
 network connection records as normal traffic or one of four attack categories
 (dos, probe, r2l, u2r), using an ensemble of Random Forest, Logistic Regression,
 and XGBoost.
-
-## Table of contents
-- [Dataset](#dataset)
-- [Pipeline overview](#pipeline-overview)
-- [Results](#results)
-- [Known limitations](#known-limitations)
-- [How to run](#how-to-run)
-- [File structure](#file-structure)
-- [Possible future work](#possible-future-work)
-
 ---
 
 ## Dataset
